@@ -239,6 +239,9 @@
         if (rawDeployments.length) {
           console.log('[heatmap] first entry:', rawDeployments[0]);
           console.log('[heatmap] total records:', rawDeployments.length);
+          const sample = rawDeployments[0];
+          const rawVal = sample.block_time || sample.timestamp || sample.created_at;
+          console.log('[heatmap] sample raw timestamp:', JSON.stringify(rawVal), '→ parsed:', getTs(sample).toISOString());
         }
         if (dataUpdatedAt) {
           const d = new Date(dataUpdatedAt);
@@ -257,7 +260,19 @@
     }
 
     // ── FIELD HELPERS (handles multiple Dune column naming conventions) ────────
-    function getTs(d)   { const s = d.block_time || d.timestamp || d.created_at || 0; return new Date(typeof s === 'string' ? s.replace(' ', 'T') : s); }
+    function getTs(d) {
+      const s = d.block_time || d.timestamp || d.created_at || 0;
+      if (typeof s !== 'string') return new Date(s);
+      // Normalize: "2026-03-15 14:23:45.123 UTC" → "2026-03-15T14:23:45.123Z"
+      let cleaned = s.trim();
+      // Remove timezone suffix like " UTC" or " +00:00"
+      cleaned = cleaned.replace(/\s*(UTC|GMT|Z|\+\d{2}:\d{2}|\+\d{4})$/i, '');
+      // Replace first space between date and time with T
+      cleaned = cleaned.replace(/^(\d{4}-\d{2}-\d{2})\s+/, '$1T');
+      // Append Z for UTC
+      cleaned += 'Z';
+      return new Date(cleaned);
+    }
     function getDep(d)  { return (d.deployer || d.from || d.tx_from || d.creator || '').toLowerCase(); }
     function getAddr(d) { return d.contract_address || d.address || d.created_contract || ''; }
     function getHash(d) { return d.tx_hash || d.hash || d.transaction_hash || ''; }
