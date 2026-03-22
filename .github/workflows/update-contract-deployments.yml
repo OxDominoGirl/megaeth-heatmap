@@ -17,49 +17,30 @@ jobs:
         with:
           token: ${{ github.token }}
 
-      - name: Execute Dune query and fetch results
+      - name: Fetch Dune query results
         run: |
-          # Execute query
-          EXEC_RESPONSE=$(curl -s -X POST \
-            "https://api.dune.com/api/v1/query/6883877/execute" \
-            -H "X-Dune-Api-Key: ${{ secrets.DUNE_API_KEY }}" \
-            -H "Content-Type: application/json")
-
-          EXECUTION_ID=$(echo $EXEC_RESPONSE | python3 -c "import sys,json; print(json.load(sys.stdin)['execution_id'])")
-          echo "Execution ID: $EXECUTION_ID"
-
-          # Poll until complete (max 5 minutes)
-          for i in $(seq 1 30); do
-            sleep 10
-            STATUS_RESPONSE=$(curl -s \
-              "https://api.dune.com/api/v1/execution/$EXECUTION_ID/status" \
-              -H "X-Dune-Api-Key: ${{ secrets.DUNE_API_KEY }}")
-
-            STATE=$(echo $STATUS_RESPONSE | python3 -c "import sys,json; print(json.load(sys.stdin).get('state',''))")
-            echo "Attempt $i: $STATE"
-
-            if [ "$STATE" = "QUERY_STATE_COMPLETED" ]; then
-              break
-            fi
-            if [ "$STATE" = "QUERY_STATE_FAILED" ]; then
-              echo "Query failed"
-              exit 1
-            fi
-          done
-
-          # Fetch results
+          # Fetch latest cached results directly (no re-execution needed)
           RESULTS=$(curl -s \
-            "https://api.dune.com/api/v1/execution/$EXECUTION_ID/results" \
+            "https://api.dune.com/api/v1/query/6883877/results" \
             -H "X-Dune-Api-Key: ${{ secrets.DUNE_API_KEY }}")
 
-          # Extract rows and write JSON with metadata
+          echo "Row count check:"
           echo $RESULTS | python3 -c "
           import sys, json
-          from datetime import datetime
+          data = json.load(sys.stdin)
+          rows = data.get('result', {}).get('rows', [])
+          print(f'  rows found: {len(rows)}')
+          if rows: print(f'  first row keys: {list(rows[0].keys())}')
+          "
+
+          # Write JSON with metadata
+          echo $RESULTS | python3 -c "
+          import sys, json
+          from datetime import datetime, timezone
           data = json.load(sys.stdin)
           rows = data.get('result', {}).get('rows', [])
           output = {
-            'updated_at': datetime.utcnow().isoformat() + 'Z',
+            'updated_at': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             'total_contracts': len(rows),
             'query_id': 6883877,
             'data': rows
