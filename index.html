@@ -257,7 +257,7 @@
     }
 
     // ── FIELD HELPERS (handles multiple Dune column naming conventions) ────────
-    function getTs(d)   { return new Date(d.block_time || d.timestamp || d.created_at || 0); }
+    function getTs(d)   { const s = d.block_time || d.timestamp || d.created_at || 0; return new Date(typeof s === 'string' ? s.replace(' ', 'T') : s); }
     function getDep(d)  { return (d.deployer || d.from || d.tx_from || d.creator || '').toLowerCase(); }
     function getAddr(d) { return d.contract_address || d.address || d.created_contract || ''; }
     function getHash(d) { return d.tx_hash || d.hash || d.transaction_hash || ''; }
