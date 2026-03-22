@@ -146,12 +146,35 @@
         min-height: 360px;
         width: 100%;
         padding-bottom: 0;
+        scrollbar-width: none;
       }
+      #canvas-container::-webkit-scrollbar { display: none; }
       #canvas-container canvas {
         display: block !important;
         max-width: none !important;
         max-height: none !important;
+        touch-action: pan-x;
       }
+      #mobile-scrollbar {
+        display: block;
+        position: fixed;
+        bottom: 48px;
+        left: 0; right: 0;
+        height: 2px;
+        background: rgba(15,15,15,0.12);
+        z-index: 250;
+      }
+      #mobile-scrollbar-thumb {
+        position: absolute;
+        top: -5px;
+        left: 0;
+        height: 12px;
+        background: #19191a;
+        min-width: 40px;
+        cursor: grab;
+        transition: background 0.1s;
+      }
+      #mobile-scrollbar-thumb:active { background: #000; cursor: grabbing; }
       #legend {
         position: fixed; bottom: 0; left: 0; right: 0;
         justify-content: center; z-index: 200;
@@ -201,6 +224,9 @@
           <span class="legend-labels">High</span>
         </div>
       </div>
+
+      <!-- Mobile horizontal scrollbar -->
+      <div id="mobile-scrollbar" style="display:none"><div id="mobile-scrollbar-thumb"></div></div>
 
       <!-- Side detail panel -->
       <div id="detail-panel">
@@ -775,7 +801,63 @@
 
       drawHeatmap(heatmapCache[currentView]);
       loadingEl.style.display = 'none';
+      if (window._syncMobileScrollbar) setTimeout(window._syncMobileScrollbar, 50);
       if (!cellStatsCache[currentView]) prefetchAllCellStats(currentView);
+    }
+
+    // ── MOBILE SCROLLBAR ─────────────────────────────────────────────────────
+    function initMobileScrollbar(container) {
+      const bar   = document.getElementById('mobile-scrollbar');
+      const thumb = document.getElementById('mobile-scrollbar-thumb');
+      bar.style.display = 'block';
+
+      function syncThumb() {
+        const sw = container.scrollWidth, cw = container.clientWidth;
+        if (sw <= cw) { bar.style.display = 'none'; return; }
+        bar.style.display = 'block';
+        const trackW  = bar.clientWidth;
+        const thumbW  = Math.max(40, (cw / sw) * trackW);
+        const maxLeft = trackW - thumbW;
+        const left    = (container.scrollLeft / (sw - cw)) * maxLeft;
+        thumb.style.width = thumbW + 'px';
+        thumb.style.left  = left + 'px';
+      }
+
+      container.addEventListener('scroll', syncThumb);
+      window.addEventListener('resize', syncThumb);
+
+      // Drag thumb to scroll
+      let dragStartX, dragStartScroll;
+      function onDragStart(e) {
+        dragStartX = (e.touches ? e.touches[0].clientX : e.clientX);
+        dragStartScroll = container.scrollLeft;
+        e.preventDefault();
+        document.addEventListener('mousemove', onDragMove);
+        document.addEventListener('mouseup',   onDragEnd);
+        document.addEventListener('touchmove', onDragMove, { passive: false });
+        document.addEventListener('touchend',  onDragEnd);
+      }
+      function onDragMove(e) {
+        const x   = (e.touches ? e.touches[0].clientX : e.clientX);
+        const dx  = x - dragStartX;
+        const sw  = container.scrollWidth, cw = container.clientWidth;
+        const trackW = bar.clientWidth;
+        const thumbW = Math.max(40, (cw / sw) * trackW);
+        const ratio  = (sw - cw) / (trackW - thumbW);
+        container.scrollLeft = dragStartScroll + dx * ratio;
+        e.preventDefault();
+      }
+      function onDragEnd() {
+        document.removeEventListener('mousemove', onDragMove);
+        document.removeEventListener('mouseup',   onDragEnd);
+        document.removeEventListener('touchmove', onDragMove);
+        document.removeEventListener('touchend',  onDragEnd);
+      }
+      thumb.addEventListener('mousedown',  onDragStart);
+      thumb.addEventListener('touchstart', onDragStart, { passive: false });
+
+      // expose so drawHeatmap can call after resize
+      window._syncMobileScrollbar = syncThumb;
     }
 
     // ── INIT ─────────────────────────────────────────────────────────────────
@@ -787,6 +869,12 @@
           backgroundColor: BG_COLOR, antialias: true, resolution: window.devicePixelRatio || 1,
         });
         container.appendChild(app.view);
+
+        // Mobile: let browser handle horizontal pan on the canvas natively
+        if (window.innerWidth <= 640) {
+          app.view.style.touchAction = 'pan-x';
+          initMobileScrollbar(container);
+        }
 
         document.getElementById('panel-close').addEventListener('click', closeDetailPanel);
 
