@@ -137,12 +137,21 @@
       .view-btn { padding: 6px 16px; font-size: 11px; }
       #main-area { flex-direction: column; overflow: visible; }
       #canvas-container {
-        overflow-x: auto; overflow-y: hidden;
+        display: block !important;
+        overflow-x: scroll !important;
+        overflow-y: hidden;
         -webkit-overflow-scrolling: touch;
-        justify-content: flex-start; align-items: flex-start;
-        min-height: 480px;
+        touch-action: pan-x;
+        height: calc(100vh - 160px);
+        min-height: 360px;
+        width: 100%;
+        padding-bottom: 0;
       }
-      #canvas-container canvas { max-width: none !important; max-height: none !important; }
+      #canvas-container canvas {
+        display: block !important;
+        max-width: none !important;
+        max-height: none !important;
+      }
       #legend {
         position: fixed; bottom: 0; left: 0; right: 0;
         justify-content: center; z-index: 200;
